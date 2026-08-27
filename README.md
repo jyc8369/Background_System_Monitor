@@ -8,11 +8,10 @@ Axum API 서버 안에서 `sysinfo` 기반의 최신 시스템 스냅샷을 백�
 - 전체 CPU 사용률과 논리 코어 수
 - 전체 메모리(total/used/available/usage)
 - 시스템 uptime
-- 현재 Rust API 프로세스 CPU와 메모리
 - `GET /api/system`
 - `GET /health`
 
-CPU·메모리·uptime·현재 프로세스 정보는 하나의 재사용되는 `sysinfo::System` 인스턴스로 1초마다 갱신합니다. 프로세스 전체 목록을 스캔하지 않으며, API 요청 시 OS를 직접 조회하지 않고 `Arc<RwLock<SystemSnapshot>>`의 최신 값을 반환합니다.
+CPU·메모리·uptime은 하나의 재사용되는 `sysinfo::System` 인스턴스로 1초마다 갱신합니다. 프로세스 목록이나 자기 프로세스 정보를 수집하지 않으며, API 요청 시 OS를 직접 조회하지 않고 `Arc<RwLock<SystemSnapshot>>`의 최신 값을 반환합니다.
 
 필수 지표 중 하나라도 수집에 실패하면 `/api/system`은 HTTP 503과 고정된 오류 JSON을 반환하고, `/health`는 HTTP 503과 `UNAVAILABLE`을 반환합니다. 정상 상태의 `/health` 응답 본문은 `OK`입니다. collector가 중단되어 3초 이상 snapshot이 갱신되지 않은 경우에도 같은 비정상 상태로 처리합니다.
 
@@ -61,4 +60,4 @@ background-system-monitor-macos-x64
 background-system-monitor-macos-arm64
 ```
 
-수동 실행 방식이므로 서비스 등록은 하지 않습니다. 운영 환경에서는 기본 loopback을 유지하거나, 원격 내부망 접근이 필요할 때만 `BIND_ADDR`를 명시하고 방화벽에서 허용된 내부 네트워크만 열어야 합니다.
+수동 실행 방식이므로 서비스 등록은 하지 않습니다. Windows release 바이너리는 콘솔 창이 뜨지 않는 GUI subsystem으로 빌드되며, debug 빌드와 `cargo run`은 개발 편의를 위해 콘솔을 사용합니다. 운영 환경에서는 기본 loopback을 유지하거나, 원격 내부망 접근이 필요할 때만 `BIND_ADDR`를 명시하고 방화벽에서 허용된 내부 네트워크만 열어야 합니다.

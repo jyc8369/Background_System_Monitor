@@ -5,10 +5,7 @@ use std::{
 
 use axum::{Json, extract::State, http::StatusCode};
 use serde::Serialize;
-use sysinfo::{
-    CpuRefreshKind, MemoryRefreshKind, ProcessRefreshKind, ProcessesToUpdate, RefreshKind, System,
-    get_current_pid,
-};
+use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
 use tokio::{
     sync::RwLock,
     time::{MissedTickBehavior, interval},
@@ -25,7 +22,6 @@ pub struct SystemSnapshot {
     pub cpu: CpuInfo,
     pub memory: MemoryInfo,
     pub uptime: UptimeInfo,
-    pub process: ProcessInfo,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -52,12 +48,6 @@ pub struct MemoryInfo {
 #[derive(Clone, Debug, Serialize)]
 pub struct UptimeInfo {
     pub seconds: u64,
-}
-
-#[derive(Clone, Debug, Serialize)]
-pub struct ProcessInfo {
-    pub cpu_percent: f32,
-    pub memory_bytes: u64,
 }
 
 /// Stable error response returned when the collector cannot provide a valid
@@ -140,7 +130,6 @@ pub async fn health(State(monitor): State<Arc<SystemMonitor>>) -> (StatusCode, &
 
 struct Collector {
     system: System,
-    process_id: Option<sysinfo::Pid>,
     system_info: SystemInfo,
     logical_cores: usize,
 }
@@ -159,7 +148,6 @@ impl Collector {
 
         Self {
             system,
-            process_id: get_current_pid().ok(),
             system_info: SystemInfo {
                 hostname: System::host_name().unwrap_or_else(|| "unknown".to_owned()),
                 os: System::name().unwrap_or_else(platform_name),
@@ -215,29 +203,6 @@ impl Collector {
             return Err(CollectionError::Memory);
         }
 
-        let process = if let Some(process_id) = self.process_id {
-            // Refresh only this API process. `without_tasks` avoids Linux task
-            // enumeration, which is unnecessary for the first-version API.
-            self.system.refresh_processes_specifics(
-                ProcessesToUpdate::Some(&[process_id]),
-                true,
-                ProcessRefreshKind::nothing()
-                    .with_cpu()
-                    .with_memory()
-                    .without_tasks(),
-            );
-
-            self.system
-                .process(process_id)
-                .map(|process| ProcessInfo {
-                    cpu_percent: process.cpu_usage(),
-                    memory_bytes: process.memory(),
-                })
-                .ok_or(CollectionError::Process)?
-        } else {
-            return Err(CollectionError::Process);
-        };
-
         let used_memory = self.system.used_memory();
 
         Ok(SystemSnapshot {
@@ -256,7 +221,6 @@ impl Collector {
             uptime: UptimeInfo {
                 seconds: System::uptime(),
             },
-            process,
         })
     }
 }
@@ -265,7 +229,6 @@ impl Collector {
 enum CollectionError {
     Cpu,
     Memory,
-    Process,
 }
 
 struct MonitorState {
@@ -309,15 +272,6 @@ impl MonitorState {
 
     fn last_updated_at(&self) -> Option<u64> {
         self.snapshot.as_ref().map(|snapshot| snapshot.timestamp)
-    }
-}
-
-impl Default for ProcessInfo {
-    fn default() -> Self {
-        Self {
-            cpu_percent: 0.0,
-            memory_bytes: 0,
-        }
     }
 }
 
@@ -368,11 +322,12 @@ mod tests {
         assert!(json.get("timestamp").is_some());
         assert!(json["system"]["os"].as_str().is_some());
         assert!(json["cpu"]["logical_cores"].is_u64());
+        assert!(json.get("process").is_none());
     }
 
     #[test]
     fn failed_collection_is_not_healthy() {
-        let state = super::MonitorState::from_result(Err(super::CollectionError::Process));
+        let state = super::MonitorState::from_result(Err(super::CollectionError::Cpu));
 
         assert!(!state.is_healthy());
         assert_eq!(state.last_updated_at(), None);
