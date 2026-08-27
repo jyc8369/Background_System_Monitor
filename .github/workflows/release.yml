@@ -9,8 +9,28 @@ permissions:
   contents: write
 
 jobs:
+  verify:
+    name: Verify release source
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run tests
+        run: cargo test --locked -- --test-threads=1
+
+      - name: Run clippy
+        run: cargo clippy --locked --all-targets --all-features -- -D warnings
+
   build:
     name: ${{ matrix.artifact_name }}
+    needs: verify
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
