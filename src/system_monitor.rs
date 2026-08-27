@@ -7,7 +7,7 @@ use axum::{Json, extract::State, http::StatusCode};
 use serde::Serialize;
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
 use tokio::{
-    sync::RwLock,
+    sync::{Notify, RwLock},
     time::{MissedTickBehavior, interval},
 };
 
@@ -62,6 +62,7 @@ pub struct SystemErrorResponse {
 /// Shared monitor state held by Axum and updated by one background collector.
 pub struct SystemMonitor {
     state: Arc<RwLock<MonitorState>>,
+    shutdown: Arc<Notify>,
 }
 
 impl SystemMonitor {
@@ -74,6 +75,7 @@ impl SystemMonitor {
         let state = Arc::new(RwLock::new(MonitorState::from_result(collector.collect())));
         let monitor = Arc::new(Self {
             state: Arc::clone(&state),
+            shutdown: Arc::new(Notify::new()),
         });
 
         tokio::spawn(async move {
@@ -99,6 +101,16 @@ impl SystemMonitor {
 
     async fn is_healthy(&self) -> bool {
         self.state.read().await.is_healthy()
+    }
+
+    /// Requests a graceful server shutdown.
+    pub fn request_shutdown(&self) {
+        self.shutdown.notify_one();
+    }
+
+    /// Waits until the shutdown endpoint requests graceful termination.
+    pub async fn wait_for_shutdown(&self) {
+        self.shutdown.notified().await;
     }
 }
 
@@ -126,6 +138,14 @@ pub async fn health(State(monitor): State<Arc<SystemMonitor>>) -> (StatusCode, &
     } else {
         (StatusCode::SERVICE_UNAVAILABLE, "UNAVAILABLE")
     }
+}
+
+/// Axum handler for `POST /control/shutdown`.
+pub async fn control_shutdown(
+    State(monitor): State<Arc<SystemMonitor>>,
+) -> (StatusCode, &'static str) {
+    monitor.request_shutdown();
+    (StatusCode::OK, "OK")
 }
 
 struct Collector {

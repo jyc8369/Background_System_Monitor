@@ -1,6 +1,6 @@
 [package]
 name = "background_system_monitor"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 rust-version = "1.95"
 description = "A small cross-platform system monitor embedded in an Axum API server"

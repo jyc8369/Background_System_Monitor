@@ -2,4 +2,6 @@
 
 mod system_monitor;
 
-pub use system_monitor::{SystemMonitor, SystemSnapshot, get_system_snapshot, health};
+pub use system_monitor::{
+    SystemMonitor, SystemSnapshot, control_shutdown, get_system_snapshot, health,
+};
