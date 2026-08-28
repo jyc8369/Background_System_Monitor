@@ -17,6 +17,24 @@ pub fn collect() -> Vec<GpuInfo> {
     platform::collect()
 }
 
+#[cfg(target_os = "macos")]
+fn macos_vendor_from_name(name: &str) -> Option<String> {
+    let name = name.to_ascii_lowercase();
+    let vendor = if name.contains("intel") {
+        "Intel"
+    } else if name.contains("amd") || name.contains("radeon") {
+        "AMD"
+    } else if name.contains("nvidia") || name.contains("geforce") {
+        "NVIDIA"
+    } else if name.contains("apple") {
+        "Apple"
+    } else {
+        return None;
+    };
+
+    Some(vendor.to_owned())
+}
+
 #[cfg(any(target_os = "windows", target_os = "linux"))]
 struct NvmlGpuInfo {
     name: String,
@@ -411,7 +429,7 @@ mod platform {
             .map(|(index, device)| GpuInfo {
                 index,
                 name: Some(device.name().to_owned()),
-                vendor: Some("Apple".to_owned()),
+                vendor: super::macos_vendor_from_name(device.name()),
                 memory_total_bytes: Some(device.recommended_max_working_set_size()),
                 memory_used_bytes: Some(device.current_allocated_size()),
                 utilization_percent: None,
@@ -467,5 +485,19 @@ mod tests {
         assert!(json["temperature_celsius"].is_null());
         assert!(json["power_watts"].is_null());
         assert!(json.get("driver_version").is_none());
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_vendor_is_inferred_from_the_metal_device_name() {
+        assert_eq!(
+            super::macos_vendor_from_name("Intel Iris Plus"),
+            Some("Intel".to_owned())
+        );
+        assert_eq!(
+            super::macos_vendor_from_name("Apple M-series GPU"),
+            Some("Apple".to_owned())
+        );
+        assert_eq!(super::macos_vendor_from_name("Unknown GPU"), None);
     }
 }

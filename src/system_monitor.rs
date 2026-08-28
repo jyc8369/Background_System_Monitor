@@ -278,7 +278,9 @@ impl Collector {
             networks,
             system_info: SystemInfo {
                 hostname: System::host_name().unwrap_or_else(|| "unknown".to_owned()),
-                os: System::name().unwrap_or_else(platform_name),
+                os: System::name()
+                    .map(normalize_os_name)
+                    .unwrap_or_else(platform_name),
                 os_version: System::long_os_version()
                     .or_else(System::os_version)
                     .unwrap_or_else(|| "unknown".to_owned()),
@@ -670,6 +672,14 @@ fn platform_name() -> String {
     }
 }
 
+fn normalize_os_name(name: String) -> String {
+    if name.eq_ignore_ascii_case("Darwin") {
+        "macOS".to_owned()
+    } else {
+        name
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
@@ -730,6 +740,12 @@ mod tests {
 
         assert_eq!(json["name"], "Background_System_Monitor");
         assert_eq!(json["status"], "OK");
+    }
+
+    #[test]
+    fn darwin_is_normalized_for_api_consumers() {
+        assert_eq!(super::normalize_os_name("Darwin".to_owned()), "macOS");
+        assert_eq!(super::normalize_os_name("Linux".to_owned()), "Linux");
     }
 
     #[test]
