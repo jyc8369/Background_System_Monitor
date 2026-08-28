@@ -36,11 +36,20 @@ curl http://127.0.0.1:3001/api/system
 curl http://127.0.0.1:3001/health
 ```
 
+정상적인 `/health` 응답:
+
+```json
+{
+  "name": "Background_System_Monitor",
+  "status": "OK"
+}
+```
+
 ```text
 curl -X POST http://127.0.0.1:3001/control/shutdown
 ```
 
-`/health`는 정상일 때 본문 `OK`와 HTTP 200을 반환합니다. 필수 지표 수집에 실패하면 `/api/system`은 HTTP 503과 고정된 오류 JSON을 반환하고, `/health`는 본문 `UNAVAILABLE`과 HTTP 503을 반환합니다. collector가 중단되어 3초 이상 snapshot이 갱신되지 않은 경우에도 비정상 상태로 처리합니다.
+`/health`는 정상일 때 위 JSON과 HTTP 200을 반환합니다. 필수 지표 수집에 실패하면 `/api/system`은 HTTP 503과 고정된 오류 JSON을 반환하고, `/health`는 `{"name":"Background_System_Monitor","status":"UNAVAILABLE"}`와 HTTP 503을 반환합니다. collector가 중단되어 3초 이상 snapshot이 갱신되지 않은 경우에도 비정상 상태로 처리합니다.
 
 `POST /control/shutdown`은 현재 요청을 처리한 뒤 서버를 graceful shutdown합니다. 인증은 현재 제공하지 않으므로 `BIND_ADDR`로 외부에 바인딩할 경우 접근 가능한 클라이언트가 서버를 종료할 수 있습니다. 기본 loopback을 유지하거나 방화벽으로 접근을 제한해야 합니다.
 

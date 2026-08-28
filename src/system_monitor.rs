@@ -13,6 +13,7 @@ use tokio::{
 
 const COLLECTION_INTERVAL: Duration = Duration::from_secs(1);
 const MAX_SNAPSHOT_AGE: Duration = Duration::from_secs(3);
+const PROGRAM_NAME: &str = "Background_System_Monitor";
 
 /// A point-in-time view of the metrics exposed by `/api/system`.
 #[derive(Clone, Debug, Serialize)]
@@ -57,6 +58,12 @@ pub struct SystemErrorResponse {
     pub error: &'static str,
     pub message: &'static str,
     pub last_updated_at: Option<u64>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct HealthResponse {
+    pub name: &'static str,
+    pub status: &'static str,
 }
 
 /// Shared monitor state held by Axum and updated by one background collector.
@@ -132,12 +139,22 @@ pub async fn get_system_snapshot(
 }
 
 /// Axum handler for `GET /health`.
-pub async fn health(State(monitor): State<Arc<SystemMonitor>>) -> (StatusCode, &'static str) {
-    if monitor.is_healthy().await {
+pub async fn health(
+    State(monitor): State<Arc<SystemMonitor>>,
+) -> (StatusCode, Json<HealthResponse>) {
+    let (status_code, status) = if monitor.is_healthy().await {
         (StatusCode::OK, "OK")
     } else {
         (StatusCode::SERVICE_UNAVAILABLE, "UNAVAILABLE")
-    }
+    };
+
+    (
+        status_code,
+        Json(HealthResponse {
+            name: PROGRAM_NAME,
+            status,
+        }),
+    )
 }
 
 /// Axum handler for `POST /control/shutdown`.
@@ -321,7 +338,7 @@ fn platform_name() -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{Collector, percentage};
+    use super::{Collector, HealthResponse, PROGRAM_NAME, percentage};
 
     #[test]
     fn percentage_returns_zero_for_unknown_total() {
@@ -351,5 +368,17 @@ mod tests {
 
         assert!(!state.is_healthy());
         assert_eq!(state.last_updated_at(), None);
+    }
+
+    #[test]
+    fn health_response_contains_program_name_and_status() {
+        let response = HealthResponse {
+            name: PROGRAM_NAME,
+            status: "OK",
+        };
+        let json = serde_json::to_value(response).expect("health response should serialize");
+
+        assert_eq!(json["name"], "Background_System_Monitor");
+        assert_eq!(json["status"], "OK");
     }
 }
