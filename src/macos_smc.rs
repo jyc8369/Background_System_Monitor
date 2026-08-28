@@ -91,6 +91,6 @@ mod tests {
 
     #[test]
     fn rejects_out_of_range_sensor_values() {
-        assert!(decode_value(b"sp78", &[0xFA, 0x00], -50.0, 200.0).is_none());
+        assert!(decode_value(b"sp78", &[0xCD, 0x00], -50.0, 200.0).is_none());
     }
 }
