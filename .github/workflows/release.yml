@@ -28,9 +28,63 @@ jobs:
       - name: Run clippy
         run: cargo clippy --locked --all-targets --all-features -- -D warnings
 
+  verify-macos:
+    name: Verify macOS runtime (${{ matrix.architecture }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+            architecture: Intel
+          - os: macos-14
+            target: aarch64-apple-darwin
+            architecture: Apple Silicon
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Run macOS tests
+        run: cargo test --locked --target ${{ matrix.target }} -- --test-threads=1
+
+      - name: Build release binary
+        run: cargo build --locked --release --target ${{ matrix.target }}
+
+      - name: Smoke test native macOS API
+        shell: bash
+        run: |
+          set -euo pipefail
+          binary="target/${{ matrix.target }}/release/background_system_monitor"
+          "$binary" > macos-smoke.log 2>&1 &
+          pid=$!
+          cleanup() {
+            kill "$pid" 2>/dev/null || true
+            wait "$pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          for attempt in {1..30}; do
+            if curl --fail --silent --show-error http://127.0.0.1:3001/health > health.json; then
+              break
+            fi
+            sleep 1
+          done
+
+          test -s health.json
+          python3 -c 'import json; data=json.load(open("health.json")); assert data["status"] == "OK"; assert data["name"] == "Background_System_Monitor"'
+          curl --fail --silent --show-error http://127.0.0.1:3001/api/system > system.json
+          python3 -c 'import json; data=json.load(open("system.json")); required=["index", "name", "vendor", "memory_total_bytes", "memory_used_bytes", "utilization_percent", "temperature_celsius", "power_watts"]; assert isinstance(data["gpus"], list); assert "package_temperature_celsius" in data["cpu"]; assert all(all(key in gpu for key in required) for gpu in data["gpus"])'
+          curl --fail --silent --show-error --request POST http://127.0.0.1:3001/control/shutdown
+
   build:
     name: ${{ matrix.artifact_name }}
-    needs: verify
+    needs: [verify, verify-macos]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false

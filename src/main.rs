@@ -9,6 +9,8 @@ use axum::{
 use background_system_monitor::{SystemMonitor, control_shutdown, get_system_snapshot, health};
 use tokio::net::TcpListener;
 
+const BIND_ADDRESS_ENV: &str = "BACKGROUND_SYSTEM_MONITOR_BIND_ADDR";
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     tracing_subscriber::fmt::init();
@@ -20,7 +22,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .route("/control/shutdown", post(control_shutdown))
         .with_state(Arc::clone(&monitor));
 
-    let bind_address = std::env::var("BIND_ADDR").unwrap_or_else(|_| "127.0.0.1:3001".to_owned());
+    let bind_address =
+        std::env::var(BIND_ADDRESS_ENV).unwrap_or_else(|_| "127.0.0.1:3001".to_owned());
     let address: SocketAddr = bind_address.parse()?;
     let listener = TcpListener::bind(address).await?;
 

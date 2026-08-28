@@ -1,6 +1,6 @@
 [package]
 name = "background_system_monitor"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 rust-version = "1.95"
 description = "A small cross-platform system monitor embedded in an Axum API server"
@@ -13,6 +13,18 @@ sysinfo = "0.39.6"
 tokio = { version = "1.45.1", features = ["macros", "net", "rt-multi-thread", "signal", "time"] }
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter", "fmt"] }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62.2", features = ["Win32_Graphics_Dxgi", "Win32_System_Com", "Win32_System_Performance"] }
+nvml-wrapper = "0.12.1"
+adlx = "0.0.0-alpha.1"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+nvml-wrapper = "0.12.1"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+metal = "0.33.0"
+smc-lib = "0.1.2"
 
 [dev-dependencies]
 serde_json = "1.0.140"
